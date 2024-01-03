@@ -76,41 +76,27 @@ def misclassification_rate(cs: np.array, ys: np.array) -> float:
         return 1 - (sum(hits) / len(cs))
 
 
-# # From code linked on lecture slide
-# def initialize_random_weights(p: int, l: int, k: int) -> Tuple[np.array, np.array]:
-#     """
-#     Initialize the weight matrices of a two-layer MLP.
-
-#     Arguments:
-#     - `p`: number of input attributes
-#     - `l`: number of hidden layer features
-#     - `k`: number of output classes
-
-#     Returns:
-#     - W_h, a l-by-(p+1) matrix
-#     - W_o, a k-by-(l+1) matrix
-#     """
-#     W_h = np.random.normal(size=(l, p+1))
-#     W_o = np.random.normal(size=(k, l+1))
-#     return W_h, W_o
-
-def initialize_random_weights(p, l, k):
+# From code linked on lecture slide
+def initialize_random_weights(p: int, l: int, k: int) -> Tuple[np.array, np.array]:
     """
     Initialize the weight matrices of a two-layer MLP.
 
-    Args:
-        p (int): number of input attributes
-        l (int): number of hidden layer features
-        k (int): number of output classes
+    Arguments:
+    - `p`: number of input attributes
+    - `l`: number of hidden layer features
+    - `k`: number of output classes
 
     Returns:
-        W_h (ndarray): l-by-(p+1) matrix
-        W_o (ndarray): k-by-(l+1) matrix
+    - W_h, a l-by-(p+1) matrix
+    - W_o, a k-by-(l+1) matrix
     """
-    # Add 1 to p for the bias term
-    W_h = np.random.normal(size=(l, p+1))
+    W_h = np.random.normal(size=(l, p+2))
     W_o = np.random.normal(size=(k, l+1))
     return W_h, W_o
+
+
+
+
 
 
 # From code linked on lecture slide / last exercise sheet
@@ -127,32 +113,28 @@ def predict_probabilities(W_h: np.array, W_o: np.array, xs: np.array) -> np.arra
     - `W_h`: a l-by-(p+1) matrix
     - `W_o`: a k-by-(l+1) matrix
     - `xs`: feature vectors in the dataset as a two-dimensional numpy array
-            with shape (n, p+1)
+            with shape (n, p)
 
     Returns:
     - The probabilities for each of the k classes for each of the n examples as
       a two-dimensional numpy array with shape (n, k)
     """
-    # Print shapes for debugging
-    print("Shapes:")
-    print(f"W_h: {W_h.shape}")
     xs_with_bias = np.column_stack((np.ones(len(xs)), xs))
-    print(f"xs_with_bias: {xs_with_bias.shape}")
-
-    # Calculate hidden layer outputs
-    z_h = np.dot(W_h, xs_with_bias.T)
+    z_h = np.dot(xs_with_bias, W_h.T)
     a_h = sigmoid(z_h)
 
-    # Add bias term to hidden layer outputs
-    a_h_with_bias = np.row_stack((np.ones(len(a_h[0])), a_h))
-
-    # Calculate output layer inputs
-    z_o = np.dot(W_o, a_h_with_bias)
+    a_h_with_bias = np.column_stack((np.ones(len(a_h)), a_h))
+    z_o = np.dot(a_h_with_bias, W_o.T)
 
     # Calculate output layer probabilities using sigmoid activation
-    a_o = sigmoid(z_o).T
+    a_o = sigmoid(z_o)
 
     return a_o
+
+
+
+
+
 
 
 def predict(W_h: np.array, W_o: np.array, xs: np.array) -> np.array:
@@ -177,7 +159,7 @@ def predict(W_h: np.array, W_o: np.array, xs: np.array) -> np.array:
 
 
 # From code linked on lecture slide
-def train_multilayer_perceptron(xs: np.array, cs: np.array, l: int, eta: float=0.0001, iterations: int=1000, validation_fraction: float=0) -> Tuple[list[Tuple[np.array, np.array]], list[float], list[float]]:
+def train_multilayer_perceptron(xs: np.array, cs: np.array, l: int, p: int, eta: float=0.0001, iterations: int=1000, validation_fraction: float=0) -> Tuple[list[Tuple[np.array, np.array]], list[float], list[float]]:
     """
     Fit a multilayer perceptron with two layers and return the learned weight matrices as numpy arrays.
 
@@ -185,9 +167,10 @@ def train_multilayer_perceptron(xs: np.array, cs: np.array, l: int, eta: float=0
     - `xs`: feature vectors in the training dataset as a two-dimensional numpy array with shape (n, p+1)
     - `cs`: class values for every element in `xs` as a two-dimensional numpy array with shape (n, k)
     - `l`: the number of hidden layer features
+    - `p`: the number of input features
     - `eta`: the learning rate as a float value
-    - `iterations': the number of iterations to run the algorithm for
-    - 'validation_fraction': fraction of xs and cs used for validation (not for training)
+    - `iterations`: the number of iterations to run the algorithm for
+    - `validation_fraction`: fraction of xs and cs used for validation (not for training)
 
     Returns:
     - models (W_h, W_o) for each iteration, where W_h is a l-by-(p+1) matrix and W_o is a k-by-(l+1) matrix
@@ -197,42 +180,62 @@ def train_multilayer_perceptron(xs: np.array, cs: np.array, l: int, eta: float=0
     models = []
     train_misclassification_rates = []
     validation_misclassification_rates = []
+    weights_history = []  # added for part (d)
     last_train_index = round((1 - validation_fraction) * len(cs))
 
-    ## (1) Initialization
-    p = len(xs[0]) - 1
-    k = len(cs[0])
+    # Initialization of weight matrices
+    # W_h = np.random.normal(0, 0.01, size=(l, p + 2)) 
+    # W_h, W_o = initialize_random_weights(p, l, k)
+
+    # k = len(np.unique(cs[0, :])) 
+    # k = cs.shape[1]
+    k = cs.shape[1]
     W_h, W_o = initialize_random_weights(p, l, k)
-    ## (2) Outer loop (over epochs/iterations)
+
+
+
     for t in range(iterations):
-        ## (4) Inner loop (over training examples)
-        for i in range(last_train_index):
-            # (x as a column vector)
-            x = np.reshape(xs[i], (len(xs[i]), 1))
-            c = cs[i].reshape(k, 1)
-    
-            # TODO (d): Your code here
+        for i in range(len(xs)):
             # Forward pass
-            xs_with_bias = np.row_stack((np.ones(1), x))
+            xs_with_bias = np.hstack((np.ones((len(xs), 1)), xs))
+ 
+            print("xs_with_bias shape:", xs_with_bias.shape)
+
+            print("xs_with_bias shape:", xs_with_bias.shape) 
             z_h = np.dot(W_h, xs_with_bias)
             a_h = sigmoid(z_h)
-            
-            a_h_with_bias = np.row_stack((np.ones(1), a_h))
+
+            a_h_with_bias = np.hstack((np.ones((len(a_h), 1)), a_h))
+
             z_o = np.dot(W_o, a_h_with_bias)
             a_o = sigmoid(z_o)
-            
+
             # Backward pass
-            delta_o = a_o - c
+            delta_o = a_o - cs[i, :]  
             delta_h = np.dot(W_o.T, delta_o) * a_h_with_bias * (1 - a_h_with_bias)
 
             # Update weights
-            W_o -= eta * np.dot(delta_o, a_h_with_bias.T)
-            W_h -= eta * np.dot(delta_h[1:], xs_with_bias.T)
+            W_o -= eta * np.outer(delta_o, a_h_with_bias.T)
+            W_h -= eta * np.outer(delta_h[1:], xs_with_bias).T
+            
+            print("W_h shape:", W_h.shape)
+            print("xs_with_bias shape:", xs_with_bias.shape)
+
+
 
         models.append((W_h.copy(), W_o.copy()))
-        train_misclassification_rates.append(misclassification_rate(cs[0:last_train_index,:], predict(W_h, W_o, xs[0:last_train_index,:])))
-        validation_misclassification_rates.append(misclassification_rate(cs[last_train_index:,:], predict(W_h, W_o, xs[last_train_index:,:])))
-    return models, train_misclassification_rates, validation_misclassification_rates
+        train_misclassification_rates.append(misclassification_rate(cs[0:last_train_index, :], predict(W_h, W_o, xs[0:last_train_index, :])))
+        validation_misclassification_rates.append(misclassification_rate(cs[last_train_index:, :], predict(W_h, W_o, xs[last_train_index:, :])))
+        weights_history.append({'Wh': W_h.copy(), 'Wo': W_o.copy()})  # added for part (d)
+
+    return models, train_misclassification_rates, validation_misclassification_rates, weights_history
+
+
+
+
+
+
+
 
 
 # From last exercise sheet
@@ -301,6 +304,7 @@ def test_predict():
     ])
     p = len(xs[0]) - 1
     k = len(cs[0])
+    # W_h, W_o = initialize_random_weights(p, 8, k)
     W_h, W_o = initialize_random_weights(p, 8, k)
 
     ys = predict(W_h, W_o, xs)
@@ -317,7 +321,9 @@ def test_train():
         [1, 0, 0, 1],
         [1, 0, 1, 0.5]
     ])
-    models, _, _ = train_multilayer_perceptron(xs, cs, 2, eta=1, iterations=100, validation_fraction=0.4)
+    # models, _, _ = train_multilayer_perceptron(xs, cs, 2, eta=1, iterations=100, validation_fraction=0.4)
+    models, _, _ = train_multilayer_perceptron(xs, cs, l=2, p=29, eta=1, iterations=100, validation_fraction=0.4)
+
     W_h, W_o = models[-1] # get last model
 
     y = predict(W_h, W_o, np.array([[1, 1, 0, 0.2]]))
@@ -334,13 +340,15 @@ if __name__ == "__main__":
     import pytest
     import sys
 
-    train_features_file_name = sys.argv[1]
-    train_classes_file_name = sys.argv[2]
-    test_features_file_name = sys.argv[3]
-    test_predictions_file_name = sys.argv[4]
+    train_features_file_name = "features-train-cleaned.tsv"
+    train_classes_file_name = "quality-scores-train-cleaned.tsv"
+    test_features_file_name = "features-test-cleaned.tsv"
+    test_predictions_file_name = "quality-scores-test-predicted.tsv"
 
     xs = load_feature_vectors(train_features_file_name)
+    print("Shape of feature vectors (xs):", xs.shape)
     xs_test = load_feature_vectors(test_features_file_name)
+    cs = load_class_values(train_classes_file_name)
 
     print("(a)")
     test_a_result = pytest.main(['-k', 'test_encode_class_values', '--tb=short', __file__])
@@ -369,15 +377,31 @@ if __name__ == "__main__":
     if test_d_result != 0:
         sys.exit(test_d_result)
     print("Test train_multilayer_perceptron function successful")
-    models, train_misclassification_rates, validation_misclassification_rates = train_multilayer_perceptron(xs, cs, 16, eta=0.001, iterations=300, validation_fraction=0.2)
+    # models, train_misclassification_rates, validation_misclassification_rates = train_multilayer_perceptron(xs, cs, 16, eta=0.001, iterations=300, validation_fraction=0.2)
+    models, train_misclassification_rates, validation_misclassification_rates = train_multilayer_perceptron(xs, cs, 16, p=29, eta=0.001, iterations=300, validation_fraction=0.2)
+
     plot_misclassification_rates(train_misclassification_rates, validation_misclassification_rates)
 
     print("(e)")
     # best_model_index = -1 # TODO (e): replace -1 (last model) with your code
     best_model_index = np.argmin(validation_misclassification_rates)
-    print("Minimal misclassification rate on validation set (index " + str(best_model_index) + "): " + str(validation_misclassification_rates[best_model_index]))
-    W_h, W_o = models[best_model_index]
-    y_test = predict(W_h, W_o, xs_test)
+    print("Best model index:", best_model_index)
+
+    # Get the weights of the best model
+    best_W_h, best_W_o = models[best_model_index]
+
+    # Predict the test set using the best model
+    y_test = predict(best_W_h, best_W_o, xs_test)
+
+    # Save the predictions to a file
     np.savetxt(test_predictions_file_name, y_test, fmt='%d', delimiter='\t', newline='\n')
+    
+    
+    print("(f)")
+    k = 3  # Update this line for three classes
+
+    models, train_misclassification_rates, validation_misclassification_rates, weights_history = train_multilayer_perceptron(
+        xs, cs, l=16, p=29, eta=0.001, iterations=300, validation_fraction=0.2
+    )
 
 
