@@ -10,7 +10,7 @@ np.random.seed(42)
 # Starter code for exercise 7: Neural Network for Argument Quality
 ##################################################################
 
-GROUP = "XX"  # TODO: write in your group number
+GROUP = "04"  # TODO: write in your group number
 
 # From last exercise sheet
 def load_feature_vectors(filename: str) -> np.array:
@@ -47,6 +47,21 @@ def encode_class_values(cs: list[str], class_index: dict[str, int]) -> np.array:
     - an array of shape (n, k) containing n column vectors with k elements each.
     """
     # TODO (a): Your code here
+    k = len(class_index)
+    n = len(cs)
+    encoded_array = np.zeros((n, k), dtype=int)
+
+    for i, value in enumerate(cs):
+        encoded_array[i, class_index[value]] = 1
+
+    return encoded_array
+
+# # Assuming class_index is a dictionary mapping class values to indices
+# class_index = {'class1': 0, 'class2': 1, 'class3': 2}
+# class_values = ['class1', 'class2', 'class3', 'class1', 'class3']
+
+# encoded_values = encode_class_values(class_values, class_index)
+# print(encoded_values)
 
 
 def misclassification_rate(cs: np.array, ys: np.array) -> float:
@@ -58,23 +73,41 @@ def misclassification_rate(cs: np.array, ys: np.array) -> float:
         return float('nan')
     else:
         hits = [cs[i][ys[i]] for i in range(len(ys))]
-        return 1 - (sum(hits) / len(ys))
+        return 1 - (sum(hits) / len(cs))
 
 
-# From code linked on lecture slide
-def initialize_random_weights(p: int, l: int, k: int) -> Tuple[np.array, np.array]:
+# # From code linked on lecture slide
+# def initialize_random_weights(p: int, l: int, k: int) -> Tuple[np.array, np.array]:
+#     """
+#     Initialize the weight matrices of a two-layer MLP.
+
+#     Arguments:
+#     - `p`: number of input attributes
+#     - `l`: number of hidden layer features
+#     - `k`: number of output classes
+
+#     Returns:
+#     - W_h, a l-by-(p+1) matrix
+#     - W_o, a k-by-(l+1) matrix
+#     """
+#     W_h = np.random.normal(size=(l, p+1))
+#     W_o = np.random.normal(size=(k, l+1))
+#     return W_h, W_o
+
+def initialize_random_weights(p, l, k):
     """
     Initialize the weight matrices of a two-layer MLP.
 
-    Arguments:
-    - `p`: number of input attributes
-    - `l`: number of hidden layer features
-    - `k`: number of output classes
+    Args:
+        p (int): number of input attributes
+        l (int): number of hidden layer features
+        k (int): number of output classes
 
     Returns:
-    - W_h, a l-by-(p+1) matrix
-    - W_o, a k-by-(l+1) matrix
+        W_h (ndarray): l-by-(p+1) matrix
+        W_o (ndarray): k-by-(l+1) matrix
     """
+    # Add 1 to p for the bias term
     W_h = np.random.normal(size=(l, p+1))
     W_o = np.random.normal(size=(k, l+1))
     return W_h, W_o
@@ -100,7 +133,26 @@ def predict_probabilities(W_h: np.array, W_o: np.array, xs: np.array) -> np.arra
     - The probabilities for each of the k classes for each of the n examples as
       a two-dimensional numpy array with shape (n, k)
     """
-    # TODO (b): Your code here
+    # Print shapes for debugging
+    print("Shapes:")
+    print(f"W_h: {W_h.shape}")
+    xs_with_bias = np.column_stack((np.ones(len(xs)), xs))
+    print(f"xs_with_bias: {xs_with_bias.shape}")
+
+    # Calculate hidden layer outputs
+    z_h = np.dot(W_h, xs_with_bias.T)
+    a_h = sigmoid(z_h)
+
+    # Add bias term to hidden layer outputs
+    a_h_with_bias = np.row_stack((np.ones(len(a_h[0])), a_h))
+
+    # Calculate output layer inputs
+    z_o = np.dot(W_o, a_h_with_bias)
+
+    # Calculate output layer probabilities using sigmoid activation
+    a_o = sigmoid(z_o).T
+
+    return a_o
 
 
 def predict(W_h: np.array, W_o: np.array, xs: np.array) -> np.array:
@@ -117,6 +169,11 @@ def predict(W_h: np.array, W_o: np.array, xs: np.array) -> np.array:
     - The predicted class for each of the n examples as an array of length n
     """
     # TODO (c): Your code here
+    # Get class probabilities
+    probabilities = predict_probabilities(W_h, W_o, xs)
+    
+    # Return the class with the highest probability for each example
+    return np.argmax(probabilities, axis=1)
 
 
 # From code linked on lecture slide
@@ -155,6 +212,22 @@ def train_multilayer_perceptron(xs: np.array, cs: np.array, l: int, eta: float=0
             c = cs[i].reshape(k, 1)
     
             # TODO (d): Your code here
+            # Forward pass
+            xs_with_bias = np.row_stack((np.ones(1), x))
+            z_h = np.dot(W_h, xs_with_bias)
+            a_h = sigmoid(z_h)
+            
+            a_h_with_bias = np.row_stack((np.ones(1), a_h))
+            z_o = np.dot(W_o, a_h_with_bias)
+            a_o = sigmoid(z_o)
+            
+            # Backward pass
+            delta_o = a_o - c
+            delta_h = np.dot(W_o.T, delta_o) * a_h_with_bias * (1 - a_h_with_bias)
+
+            # Update weights
+            W_o -= eta * np.dot(delta_o, a_h_with_bias.T)
+            W_h -= eta * np.dot(delta_h[1:], xs_with_bias.T)
 
         models.append((W_h.copy(), W_o.copy()))
         train_misclassification_rates.append(misclassification_rate(cs[0:last_train_index,:], predict(W_h, W_o, xs[0:last_train_index,:])))
@@ -300,7 +373,8 @@ if __name__ == "__main__":
     plot_misclassification_rates(train_misclassification_rates, validation_misclassification_rates)
 
     print("(e)")
-    best_model_index = -1 # TODO (e): replace -1 (last model) with your code
+    # best_model_index = -1 # TODO (e): replace -1 (last model) with your code
+    best_model_index = np.argmin(validation_misclassification_rates)
     print("Minimal misclassification rate on validation set (index " + str(best_model_index) + "): " + str(validation_misclassification_rates[best_model_index]))
     W_h, W_o = models[best_model_index]
     y_test = predict(W_h, W_o, xs_test)
