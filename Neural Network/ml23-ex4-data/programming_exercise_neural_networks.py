@@ -18,9 +18,9 @@ def load_feature_vectors(filename: str) -> np.array:
     Load the feature vectors from the dataset in the given file and return
     them as a numpy array with shape (number-of-examples, number-of-features + 1).
     """
-    #features = pd.read_csv(filename, sep='\t', usecols=["#id", "chars_count"]).to_numpy()
+    
     features = pd.read_csv(filename, sep='\t').to_numpy()
-    features[:, 0] = 1 # replace #id column with w0
+    features[:, 0] = 1 
     return features.astype(float)
 
 
@@ -56,12 +56,6 @@ def encode_class_values(cs: list[str], class_index: dict[str, int]) -> np.array:
 
     return encoded_array
 
-# # Assuming class_index is a dictionary mapping class values to indices
-# class_index = {'class1': 0, 'class2': 1, 'class3': 2}
-# class_values = ['class1', 'class2', 'class3', 'class1', 'class3']
-
-# encoded_values = encode_class_values(class_values, class_index)
-# print(encoded_values)
 
 
 def misclassification_rate(cs: np.array, ys: np.array) -> float:
@@ -93,10 +87,6 @@ def initialize_random_weights(p: int, l: int, k: int) -> Tuple[np.array, np.arra
     W_h = np.random.normal(size=(l, p+2))
     W_o = np.random.normal(size=(k, l+1))
     return W_h, W_o
-
-
-
-
 
 
 # From code linked on lecture slide / last exercise sheet
