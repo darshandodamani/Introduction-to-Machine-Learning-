@@ -5,7 +5,7 @@ from typing import Callable, Optional, Tuple
 ########################################################################
 # Starter code for exercise 6: Argument quality prediction with CART decision trees
 ########################################################################
-GROUP = # TODO: Your group number here
+GROUP = 4 # 04 Your group number here
 
 def load_feature_vectors(filename: str) -> np.array:
     """
@@ -38,6 +38,10 @@ def most_common_class(cs: np.array):
           every element x of a dataset D
     """
     # TODO: Your code here
+    unique_classes, counts = np.unique(cs, return_counts=True)
+    most_common_index = np.argmax(counts)
+    most_common_class_value = unique_classes[most_common_index]
+    return most_common_class_value
 
 def gini_impurity(cs: np.array) -> float:
     """Compute the Gini index for a set of examples represented by the list of
@@ -48,6 +52,17 @@ def gini_impurity(cs: np.array) -> float:
           every element x of a dataset D
     """
     # TODO: Your code here
+    total_samples = len(cs)
+    if total_samples == 0:
+        return 0.0
+
+    # Calculate the probability of each class in the set
+    class_probabilities = np.array([np.sum(cs == c) / total_samples for c in np.unique(cs)])
+
+    # Calculate the Gini index using the formula: Gini(D) = 1 - sum(p_i^2)
+    gini_index = 1.0 - np.sum(class_probabilities**2)
+
+    return gini_index
 
 def gini_impurity_reduction(impurity_D: float, cs_l: np.array, cs_r: np.array) -> float:
     """Compute the Gini impurity reduction of a binary split.
@@ -59,6 +74,21 @@ def gini_impurity_reduction(impurity_D: float, cs_l: np.array, cs_r: np.array) -
     """
     size_D = len(cs_l) + len(cs_r)
     # TODO: Your code here
+    size_l = len(cs_l)
+    size_r = len(cs_r)
+    size_D = size_l + size_r
+
+    # Calculate the Gini impurity for the left and right splits
+    impurity_l = gini_impurity(cs_l)
+    impurity_r = gini_impurity(cs_r)
+
+    # Calculate the weighted average Gini impurity after the split
+    weighted_impurity = (size_l / size_D) * impurity_l + (size_r / size_D) * impurity_r
+
+    # Calculate the Gini impurity reduction using the formula: Impurity(D) - Impurity(D|split)
+    impurity_reduction = impurity_D - weighted_impurity
+
+    return impurity_reduction
 
 def possible_thresholds(xs: np.array, feature: int) -> np.array:
     """Compute all possible thresholds for splitting the example set xs along
@@ -70,6 +100,16 @@ def possible_thresholds(xs: np.array, feature: int) -> np.array:
     - feature: an integer with 0 <= a < p, giving the feature to be used for splitting xs
     """
     # TODO: Your code here
+    # Extract the feature values for the specified feature
+    feature_values = xs[:, feature, 0]
+
+    # Sort the feature values in ascending order
+    sorted_values = np.sort(feature_values)
+
+    # Calculate mid-points between consecutive values
+    thresholds = (sorted_values[:-1] + sorted_values[1:]) / 2
+
+    return thresholds
 
 def find_split_indexes(xs: np.array, feature: int, threshold: float) -> Tuple[np.array, np.array]:
     """Split the given dataset using the provided feature and threshold.
@@ -113,6 +153,23 @@ def find_best_split(xs: np.array, cs: np.array) -> Tuple[int, float]:
     for a_i in features:
         for threshold in possible_thresholds(xs, a_i):
             # TODO: Your code here
+            # Split the dataset based on the current feature and threshold
+            left_indexes, right_indexes = find_split_indexes(xs, a_i, threshold)
+            
+            # Extract class values for the left and right splits
+            cs_left = cs[left_indexes]
+            cs_right = cs[right_indexes]
+
+            # Calculate Gini impurity reduction for the current split
+            gini_reduction = gini_impurity_reduction(gini_all, cs_left, cs_right)
+
+            # Update the best split if the current split has higher impurity reduction
+            if gini_reduction > gini_reduction_best:
+                gini_reduction_best = gini_reduction
+                a_best = a_i
+                threshold_best = threshold
+
+    return a_best, threshold_best
 
 def misclassification_rate(cs: np.array, ys: np.array) -> float:
     """
@@ -180,6 +237,33 @@ def id3_cart(xs: np.array, cs: np.array, max_depth: int=10) -> CARTNode:
     - the root node of the constructed decision tree
     """
     # TODO: Your code here
+    if max_depth == 0 or len(np.unique(cs)) == 1:
+        # Create a leaf node if max_depth is reached or all examples have the same class
+        leaf = CARTNode()
+        leaf.set_label(most_common_class(cs))
+        return leaf
+
+    # Find the best split
+    best_feature, best_threshold = find_best_split(xs, cs)
+
+    if best_feature is None:
+        # No suitable split found, create a leaf node
+        leaf = CARTNode()
+        leaf.set_label(most_common_class(cs))
+        return leaf
+
+    # Split the dataset
+    left_indexes, right_indexes = find_split_indexes(xs, best_feature, best_threshold)
+
+    # Recursive call to build left and right subtrees
+    left_subtree = id3_cart(xs[left_indexes], cs[left_indexes], max_depth - 1)
+    right_subtree = id3_cart(xs[right_indexes], cs[right_indexes], max_depth - 1)
+
+    # Create an internal node with the best split
+    node = CARTNode()
+    node.set_split(best_feature, best_threshold, left_subtree, right_subtree)
+
+    return node
 
 
 class CARTModel:
@@ -206,6 +290,28 @@ def train_and_predict(training_features_file_name: str,
     examples in the testing dataset.
     """
     # TODO: Your code here
+    # Load training data
+    train_xs = load_feature_vectors(training_features_file_name)
+    train_cs = load_class_values(training_classes_file_name)
+
+    # Load test data
+    test_xs = load_feature_vectors(test_features_file_name)
+
+    # Initialize and train the model
+    model = CARTModel(max_depth=None)  # You can set a specific max_depth if needed
+    model.fit(train_xs, train_cs)
+
+    # Predict on the training set
+    train_predictions = np.array([model.predict(x) for x in train_xs])
+
+    # Calculate and print misclassification rate on the training set
+    train_misclassification_rate = misclassification_rate(train_cs, train_predictions)
+    print(f"Misclassification Rate on Training Set: {train_misclassification_rate:.2%}")
+
+    # Predict on the test set
+    test_predictions = np.array([model.predict(x) for x in test_xs])
+
+    return test_predictions
 
 ########################################################################
 # Tests
