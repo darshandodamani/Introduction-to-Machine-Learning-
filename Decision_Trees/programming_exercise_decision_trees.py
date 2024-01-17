@@ -5,7 +5,7 @@ from typing import Callable, Optional, Tuple
 ########################################################################
 # Starter code for exercise 6: Argument quality prediction with CART decision trees
 ########################################################################
-GROUP = 4 # 04 Your group number here
+GROUP = '04' # 04 Your group number here
 
 def load_feature_vectors(filename: str) -> np.array:
     """
@@ -16,7 +16,7 @@ def load_feature_vectors(filename: str) -> np.array:
     features = pd.read_csv(filename, sep='\t')
     features = features.select_dtypes(include=np.int64) # keep only numerical values
     feature_names = features.columns
-    xs = features.loc[:, feature_names].values
+    xs = features.loc[:, feature_names].values 
     xs = xs.reshape(xs.shape[0], xs.shape[-1], 1)
     xs = np.concatenate([np.ones([xs.shape[0], 1, 1]), xs], axis=1)
     return xs
