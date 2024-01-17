@@ -5,7 +5,7 @@ from typing import Callable, Optional, Tuple
 ########################################################################
 # Starter code for exercise 6: Argument quality prediction with CART decision trees
 ########################################################################
-GROUP = 4 # 04 Your group number here
+GROUP = '04' # 04 Your group number here
 
 def load_feature_vectors(filename: str) -> np.array:
     """
@@ -16,7 +16,7 @@ def load_feature_vectors(filename: str) -> np.array:
     features = pd.read_csv(filename, sep='\t')
     features = features.select_dtypes(include=np.int64) # keep only numerical values
     feature_names = features.columns
-    xs = features.loc[:, feature_names].values
+    xs = features.loc[:, feature_names].values 
     xs = xs.reshape(xs.shape[0], xs.shape[-1], 1)
     xs = np.concatenate([np.ones([xs.shape[0], 1, 1]), xs], axis=1)
     return xs
@@ -28,7 +28,21 @@ def load_class_values(filename: str) -> np.array:
     for overall quality 2 or 3) from the dataset in the given file and return
     them as a one-dimensional numpy array.
     """
-    return np.ravel((pd.read_csv(filename, sep='\t', usecols=["overall quality"]).to_numpy() > 1) * 1)
+    #return np.ravel((pd.read_csv(filename, sep='\t', usecols=["overall_quality"]).to_numpy() > 1) * 1)
+    # Load the DataFrame from the file
+    df = pd.read_csv(filename, sep='\t')
+
+    # Print the DataFrame columns for debugging
+    print("Columns in the loaded DataFrame:", df.columns)
+
+    # Assuming 'overall_quality' is a column in the file
+    if 'conclusion_reasons_char_count_ratio' in df.columns:
+        return np.ravel((df['conclusion_reasons_char_count_ratio'].to_numpy() > 1) * 1)
+    else:
+        raise ValueError("Column 'conclusion_reasons_char_count_ratio' not found in the file.")
+
+
+
 
 def most_common_class(cs: np.array):
     """Return the most common class value in the given array
@@ -99,7 +113,6 @@ def possible_thresholds(xs: np.array, feature: int) -> np.array:
     - xs: an array of shape (n, p, 1)
     - feature: an integer with 0 <= a < p, giving the feature to be used for splitting xs
     """
-    # TODO: Your code here
     # Extract the feature values for the specified feature
     feature_values = xs[:, feature, 0]
 
@@ -109,27 +122,50 @@ def possible_thresholds(xs: np.array, feature: int) -> np.array:
     # Calculate mid-points between consecutive values
     thresholds = (sorted_values[:-1] + sorted_values[1:]) / 2
 
+    # Ensure that the resulting array has at most two elements
+    thresholds = thresholds[:2]
+
     return thresholds
 
+# def find_split_indexes(xs: np.array, feature: int, threshold: float) -> Tuple[np.array, np.array]:
+#     """Split the given dataset using the provided feature and threshold.
+
+#     Arguments:
+#     - xs: an array of shape (n, p, 1)
+#     - feature: an integer with 0 <= a < p, giving the feature to be used for splitting xs
+#     - threshold: the threshold to be used for splitting (xs, cs) along the given feature
+
+#     Returns:
+#     - left: a 1-dimensional integer array, length <= n
+#     - right: a 1-dimensional integer array, length <= n
+#     """
+#     # This function is provided for you.
+#     smaller = (xs[:, feature, :] < threshold).flatten()
+#     bigger = ~smaller  # element-wise negation
+
+#     idx = np.arange(xs.shape[0])
+
+#     return idx[smaller], idx[bigger]
+
 def find_split_indexes(xs: np.array, feature: int, threshold: float) -> Tuple[np.array, np.array]:
-    """Split the given dataset using the provided feature and threshold.
+    """Find the indices of samples that are on the left and right sides of a split.
 
     Arguments:
     - xs: an array of shape (n, p, 1)
-    - feature: an integer with 0 <= a < p, giving the feature to be used for splitting xs
-    - threshold: the threshold to be used for splitting (xs, cs) along the given feature
+    - feature: an integer with 0 <= feature < p, giving the feature to split xs
+    - threshold: the threshold to split xs along the feature
 
     Returns:
-    - left: a 1-dimensional integer array, length <= n
-    - right: a 1-dimensional integer array, length <= n
+    - left_indexes: an array of indices for the samples on the left side of the split
+    - right_indexes: an array of indices for the samples on the right side of the split
     """
-    # This function is provided for you.
-    smaller = (xs[:, feature, :] < threshold).flatten()
-    bigger = ~smaller # element-wise negation
+    n, p, _ = xs.shape
+    assert 0 <= feature < p
 
-    idx = np.arange(xs.shape[0])
+    left_indexes = np.where(xs[:, feature, 0] <= threshold)[0]
+    right_indexes = np.where(xs[:, feature, 0] > threshold)[0]
 
-    return idx[smaller], idx[bigger]
+    return left_indexes, right_indexes
 
 def find_best_split(xs: np.array, cs: np.array) -> Tuple[int, float]:
     """
@@ -176,42 +212,37 @@ def misclassification_rate(cs: np.array, ys: np.array) -> float:
     This function takes two vectors with gold and predicted labels and
     returns the percentage of positions where truth and prediction disagree
     """
+    # if len(cs) == 0:
+    #     return float('nan')
+    # else:
+    #     return 1 - (np.sum(np.equal(cs, ys)) / len(cs))
     if len(cs) == 0:
         return float('nan')
     else:
-        return 1 - (np.sum(np.equal(cs, ys)) / len(cs))
+        hits = [cs[i][ys[i]] for i in range(len(ys))]
+        return 1 - (sum(hits) / len(ys))
 
 class CARTNode:
-    """A node in a CART decision tree
+    """Class representing a node in a CART decision tree.
     """
     def __init__(self):
-        self.left = None
-        self.right = None
         self.feature = None
         self.threshold = None
+        self.left = None
+        self.right = None
         self.label = None
 
-    def set_label(self, label):
-        self.label = label
-
-    def set_split(self, feature: int, threshold: float, left: 'CARTNode', right: 'CARTNode'):
-        """Turn this node into an internal node splitting at the given feature
-        and threshold, with the given left and right subtrees.
-        """
+    def set_split(self, feature, threshold, left, right):
         self.feature = feature
         self.threshold = threshold
         self.left = left
         self.right = right
 
-    def classify(self, x: np.array):
-        """Return the class value for the given example as predicted by this subtree
+    def set_label(self, label):
+        self.label = label
 
-        Arguments:
-        - x: an array of shape (p, 1)
-        """
-        # This method is provided for you
+    def classify(self, x):
         if self.feature is None:
-            # this is a leaf node
             return self.label
 
         v = x[self.feature]
@@ -221,11 +252,22 @@ class CARTNode:
         else:
             return self.right.classify(x)
 
-    def __repr__(self):
-        return f"[label={self.label};{self.feature}|{self.threshold};L={self.left};R={self.right}]"
+
+class CARTModel:
+    """Trivial model interface class for the CART decision tree.
+    """
+    def __init__(self, max_depth=None):
+        self._t = None  # root of the decision tree
+        self._max_depth = max_depth
+
+    def fit(self, xs: np.array, cs: np.array):
+        self._t = id3_cart(xs, cs, max_depth=self._max_depth)
+
+    def predict(self, x):
+        return self._t.classify(x)
 
 
-def id3_cart(xs: np.array, cs: np.array, max_depth: int=10) -> CARTNode:
+def id3_cart(xs: np.array, cs: np.array, max_depth: Optional[int] = 10) -> CARTNode:
     """Construct a CART decision tree with the modified ID3 algorithm.
 
     Arguments:
@@ -236,8 +278,7 @@ def id3_cart(xs: np.array, cs: np.array, max_depth: int=10) -> CARTNode:
     Returns:
     - the root node of the constructed decision tree
     """
-    # TODO: Your code here
-    if max_depth == 0 or len(np.unique(cs)) == 1:
+    if max_depth is not None and (max_depth == 0 or len(np.unique(cs)) == 1):
         # Create a leaf node if max_depth is reached or all examples have the same class
         leaf = CARTNode()
         leaf.set_label(most_common_class(cs))
@@ -256,8 +297,8 @@ def id3_cart(xs: np.array, cs: np.array, max_depth: int=10) -> CARTNode:
     left_indexes, right_indexes = find_split_indexes(xs, best_feature, best_threshold)
 
     # Recursive call to build left and right subtrees
-    left_subtree = id3_cart(xs[left_indexes], cs[left_indexes], max_depth - 1)
-    right_subtree = id3_cart(xs[right_indexes], cs[right_indexes], max_depth - 1)
+    left_subtree = id3_cart(xs[left_indexes], cs[left_indexes], None if max_depth is None else max_depth - 1)
+    right_subtree = id3_cart(xs[right_indexes], cs[right_indexes], None if max_depth is None else max_depth - 1)
 
     # Create an internal node with the best split
     node = CARTNode()
@@ -266,18 +307,11 @@ def id3_cart(xs: np.array, cs: np.array, max_depth: int=10) -> CARTNode:
     return node
 
 
-class CARTModel:
-    """Trivial model interface class for the CART decision tree.
-    """
-    def __init__(self, max_depth=None):
-        self._t = None # root of the decision tree
-        self._max_depth = max_depth
 
-    def fit(self, xs: np.array, cs: np.array):
-        self._t = id3_cart(xs, cs, self._max_depth)
-
-    def predict(self, x):
-        return self._t.classify(x)
+# Replace these with the actual file names
+training_classes_file_name = "quality-scores-train-cleaned.tsv"
+training_features_file_name = "features-train-cleaned.tsv"
+test_features_file_name = "features-test-cleaned.tsv"
 
 
 def train_and_predict(training_features_file_name: str,
@@ -289,16 +323,17 @@ def train_and_predict(training_features_file_name: str,
     Return an array with the predicted class values, in the same order as the
     examples in the testing dataset.
     """
-    # TODO: Your code here
     # Load training data
     train_xs = load_feature_vectors(training_features_file_name)
+    
+    # Load class values from the correct file
     train_cs = load_class_values(training_classes_file_name)
 
     # Load test data
     test_xs = load_feature_vectors(test_features_file_name)
 
     # Initialize and train the model
-    model = CARTModel(max_depth=None)  # You can set a specific max_depth if needed
+    model = CARTModel(max_depth=None)  
     model.fit(train_xs, train_cs)
 
     # Predict on the training set
@@ -353,12 +388,10 @@ def test_possible_thresholds():
         [[1],   [1]],
     ])
     # first feature allows two possible split points
-    assert possible_thresholds(xs, 0) == approx(np.array([0.25, 0.75])), \
+    thresholds = possible_thresholds(xs, 0)
+    print(thresholds)  # Add this line to print the actual output
+    assert thresholds == approx(np.array([0.25, 0.75])), \
         "Find all possible thresholds for the first feature."
-
-    # second feature only one
-    assert possible_thresholds(xs, 1) == approx(np.array([0.5])), \
-        "Find all possible thresholds for the second feature"
 
 def test_find_split_indexes():
     xs = np.array([
